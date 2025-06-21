@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quiz Devinettes Chrétiennes</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      margin: 0; padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    #quiz {
+      display: none;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      opacity: 1;
+      transition: opacity 0.5s ease;
+    }
+    #quiz.fade-out {
+      opacity: 0;
+    }
+    #question-text {
+      font-size: 1.2rem;
+      margin-bottom: 15px;
+      min-height: 50px;
+    }
+    #answers-form label {
+      display: block;
+      margin-bottom: 10px;
+      cursor: pointer;
+      opacity: 1;
+      transition: opacity 0.5s ease;
+    }
+    #answers-form.fade-out label {
+      opacity: 0;
+    }
+    #submit-btn {
+      padding: 10px 20px;
+      background: #2c3e50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: transform 0.2s ease, background-color 0.3s ease;
+      user-select: none;
+    }
+    #submit-btn:disabled {
+      background: #7f8c8d;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    #submit-btn:active:not(:disabled) {
+      transform: scale(1.1);
+    }
+    #result {
+      margin-top: 15px;
+      font-weight: bold;
+      min-height: 24px;
+      font-size: 1.1rem;
+    }
+    #score {
+      margin-top: 10px;
+      font-size: 1.1rem;
+      font-weight: bold;
+    }
+    #username-input {
+      margin-bottom: 20px;
+      padding: 10px;
+      font-size: 1rem;
+      width: 300px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    /* Confetti */
+    .confetti-piece {
+      position: fixed;
+      width: 8px;
+      height: 8px;
+      background-color: #f39c12;
+      opacity: 0.9;
+      pointer-events: none;
+      animation: confetti-fall 1s linear forwards;
+      z-index: 1000;
+    }
+    @keyframes confetti-fall {
+      to {
+        transform: translateY(100vh) rotate(360deg);
+        opacity: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Quiz Devinettes Chrétiennes</h1>
+
+  <input type="text" id="username-input" placeholder="Entre ton prénom pour jouer" />
+
+  <div id="quiz">
+    <div id="question-text"></div>
+    <form id="answers-form"></form>
+    <button id="submit-btn" disabled>Valider</button>
+    <div id="result"></div>
+    <div id="score"></div>
+  </div>
+
+<script>
+  const questions = [
+    { q: "Quel est le nom de la ville où Jésus a changé l'eau en vin ?", options: ["Nazareth", "Capharnaüm", "Cana", "Jérusalem"], answer: 2 },
+    { q: "Qui était le disciple connu comme 'l'ami de Jésus' ?", options: ["Pierre", "Jean", "Jacques", "André"], answer: 1 },
+    { q: "Dans quelle parabole Jésus parle-t-il d'un fils qui revient ?", options: ["Le bon samaritain", "Le fils prodigue", "Le semeur", "La brebis perdue"], answer: 1 },
+    { q: "Quel prophète a défié les prophètes de Baal sur le mont Carmel ?", options: ["Élie", "Ésaïe", "Jérémie", "Ézéchiel"], answer: 0 },
+    { q: "Quelle est la signification du mot 'Emmanuel' ?", options: ["Dieu est avec nous", "Prince de paix", "Messager de Dieu", "Serviteur fidèle"], answer: 0 },
+    { q: "Qui a baptisé Jésus ?", options: ["Jean-Baptiste", "Pierre", "Paul", "Nicolas"], answer: 0 },
+    { q: "Quel roi a demandé à Salomon la sagesse ?", options: ["David", "Hérode", "Pharaon", "Shishak"], answer: 0 },
+    { q: "Quelle femme de la Bible est devenue reine de Perse ?", options: ["Esther", "Ruth", "Marie", "Élisabeth"], answer: 0 },
+    { q: "Dans quelle ville Paul a-t-il été emprisonné pendant deux ans ?", options: ["Athènes", "Corinthe", "Philippi", "Césarée"], answer: 3 },
+    { q: "Quel est le premier miracle public de Jésus dans l'Évangile de Jean ?", options: ["Guérison d'un paralytique", "Multiplication des pains", "Transformation de l'eau en vin", "Marche sur l'eau"], answer: 2 }
+  ];
+
+  let currentQ = null;
+  let score = 0;
+  let username = '';
+
+  const quizDiv = document.getElementById('quiz');
+  const questionText = document.getElementById('question-text');
+  const answersForm = document.getElementById('answers-form');
+  const submitBtn = document.getElementById('submit-btn');
+  const resultDiv = document.getElementById('result');
+  const scoreDiv = document.getElementById('score');
+  const usernameInput = document.getElementById('username-input');
+
+  const encouragements = [
+    "Bravo, continue comme ça ! 😇",
+    "Tu gères, super réponse ! ✨",
+    "Waouh, c’est pile ça ! 🙌",
+    "Top, tu es vraiment fort(e) ! 🎉",
+    "Excellent choix, bravo ! 🕊️"
+  ];
+
+  function loadScore(user) {
+    const saved = localStorage.getItem('quizScore_' + user.toLowerCase());
+    if (saved !== null) return Number(saved);
+    return 0;
+  }
+
+  function saveScore(user, score) {
+    localStorage.setItem('quizScore_' + user.toLowerCase(), score);
+  }
+
+  function pickQuestion() {
+    if (questions.length === 0) return null;
+    const idx = Math.floor(Math.random() * questions.length);
+    const q = questions[idx];
+    questions.splice(idx, 1);
+    return q;
+  }
+
+  function fadeOutElements() {
+    quizDiv.classList.add('fade-out');
+    answersForm.classList.add('fade-out');
+  }
+  function fadeInElements() {
+    quizDiv.classList.remove('fade-out');
+    answersForm.classList.remove('fade-out');
+  }
+
+  function showQuestion() {
+    fadeOutElements();
+    setTimeout(() => {
+      currentQ = pickQuestion();
+      if (!currentQ) {
+        questionText.textContent = `Bravo, tu as fini le quiz ! Ton score final est ${score}.`;
+        answersForm.innerHTML = '';
+        submitBtn.style.display = 'none';
+        resultDiv.textContent = '';
+        fadeInElements();
+        return;
+      }
+      questionText.textContent = currentQ.q;
+      answersForm.innerHTML = '';
+      currentQ.options.forEach((opt, i) => {
+        const id = "opt" + i;
+        const label = document.createElement('label');
+        label.htmlFor = id;
+        label.innerHTML = `<input type="radio" name="answer" id="${id}" value="${i}"> ${opt}`;
+        answersForm.appendChild(label);
+      });
+      submitBtn.disabled = true;
+      resultDiv.textContent = '';
+      fadeInElements();
+    }, 500);
+  }
+
+  function createConfetti() {
+    const colors = ['#f39c12', '#e74c3c', '#27ae60', '#2980b9', '#8e44ad'];
+    const confettiCount = 20;
+
+    for(let i=0; i<confettiCount; i++) {
+      const confetti = document.createElement('div');
+      confetti.classList.add('confetti-piece');
+      confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+      confetti.style.left = Math.random() * window.innerWidth + 'px';
+      confetti.style.top = '-10px';
+      confetti.style.animationDelay = (Math.random() * 0.5) + 's';
+      confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
+      document.body.appendChild(confetti);
+      setTimeout(() => confetti.remove(), 1500);
+    }
+  }
+
+  answersForm.addEventListener('change', () => {
+    submitBtn.disabled = false;
+  });
+
+  submitBtn.addEventListener('click', () => {
+    const selected = answersForm.answer.value;
+    if (selected === undefined) return;
+
+    if (parseInt(selected) === currentQ.answer) {
+      score++;
+      resultDiv.style.color = "#27ae60";
+      const msg = encouragements[Math.floor(Math.random() * encouragements.length)];
+      resultDiv.textContent = `😃 Correct ! +1 point. ${msg}`;
+      createConfetti();
+    } else {
+      score = Math.max(0, score - 1);
+      resultDiv.style.color = "#e74c3c";
+      resultDiv.textContent = `😞 Raté ! -1 point. La bonne réponse était : "${currentQ.options[currentQ.answer]}".`;
+    }
+    saveScore(username, score);
+    scoreDiv.textContent = `Score: ${score}`;
+
+    submitBtn.disabled = true;
+    setTimeout(() => {
+      showQuestion();
+    }, 2000);
+  });
+
+  usernameInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && usernameInput.value.trim()) {
+      username = usernameInput.value.trim();
+      score = loadScore(username);
+      scoreDiv.textContent = `Score: ${score}`;
+      usernameInput.style.display = 'none';
+      quizDiv.style.display = 'block';
+      showQuestion();
+    }
+  });
+
+</script>
+</body>
+</html>
